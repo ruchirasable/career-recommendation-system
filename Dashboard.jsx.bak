@@ -1,0 +1,370 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import api from '../api';
+
+/* ─────────────────────────────────────────────────────────────
+   Dashboard — Student Overview (no aptitude section)
+───────────────────────────────────────────────────────────── */
+export default function Dashboard() {
+  const { user, logout, updateProfile } = useAuth();
+  const navigate = useNavigate();
+
+  const [meData,  setMeData]  = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [editing, setEditing] = useState(false);
+  const [pf,      setPf]      = useState({});
+  const [saving,  setSaving]  = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  /* fetch /me */
+  useEffect(() => {
+    api.get('/api/auth/me')
+      .then(r => { if (r.data.success) setMeData(r.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  const startEdit = () => {
+    setPf({ fullName: user?.fullName, className: user?.className, schoolName: user?.schoolName });
+    setEditing(true); setSaveMsg('');
+  };
+  const handleSave = async e => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const res = await updateProfile(pf);
+      if (res.success) { setSaveMsg('Profile updated!'); setEditing(false); }
+      else setSaveMsg(res.error || 'Error saving.');
+    } catch { setSaveMsg('Failed to save.'); }
+    finally { setSaving(false); }
+  };
+
+  const initials = user?.fullName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'ST';
+
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+      <div style={s.spinner} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  const quickActions = [
+    { emoji: '🎯', label: 'IIT Finder',      sub: 'Check JEE eligibility',   path: '/iit' },
+    { emoji: '🔍', label: 'Cutoff Lookup',   sub: 'Explore IIT cutoffs',      path: '/iit-cutoff' },
+    { emoji: '🏛️', label: 'College + Course', sub: 'Find matching colleges',   path: '/college' },
+  ];
+
+  const features = [
+    {
+      icon: '🎯', title: 'JEE Prediction',
+      desc: 'Enter your JEE rank or score to get personalised IIT branch recommendations based on real cutoff data.',
+      color: '#4f46e5', path: '/iit', btnLabel: 'Try IIT Finder',
+    },
+    {
+      icon: '🔍', title: 'IIT Cutoff Lookup',
+      desc: 'Browse official JEE Advanced cutoffs for every IIT, branch, and category across multiple years.',
+      color: '#0891b2', path: '/iit-cutoff', btnLabel: 'Browse Cutoffs',
+    },
+    {
+      icon: '🏛️', title: 'Course Recommendation',
+      desc: 'Pick subjects you love and your preferred location to discover the best-matched colleges and courses.',
+      color: '#7c3aed', path: '/college', btnLabel: 'Explore Colleges',
+    },
+  ];
+
+  return (
+    <div style={s.page}>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        .dc{animation:fadeUp 0.32s ease both}
+        input:focus{outline:none!important;border-color:#4f46e5!important;box-shadow:0 0 0 3px rgba(79,70,229,0.12)!important}
+        .qa-btn{display:flex;align-items:center;gap:0.8rem;background:white;border:1.5px solid #e5e7eb;border-radius:12px;padding:0.88rem 1.1rem;cursor:pointer;transition:all 0.16s;box-shadow:0 1px 6px rgba(0,0,0,0.05);text-align:left;}
+        .qa-btn:hover{background:#ede9fe!important;border-color:#c4b5fd!important;transform:translateY(-1px);box-shadow:0 4px 14px rgba(79,70,229,0.15)!important}
+        .feat-card:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,0.1)!important}
+        @media(max-width:700px){
+          .quick-row{grid-template-columns:1fr!important}
+          .feat-row{grid-template-columns:1fr!important}
+          .profile-strip{flex-direction:column;align-items:flex-start}
+        }
+      `}</style>
+
+      {/* ══════════ HERO ══════════ */}
+      <div style={s.hero}>
+        <div style={s.orb1}/><div style={s.orb2}/>
+
+        <div style={s.heroTop}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.1rem' }}>
+            <div style={s.avatar}>{initials}</div>
+            <div>
+              <p style={s.greeting}>Welcome back 👋</p>
+              <h1 style={s.heroName}>{user?.fullName || 'Student'}</h1>
+            </div>
+          </div>
+          <button onClick={handleLogout} style={s.logoutBtn}>Sign Out</button>
+        </div>
+
+        <div className="profile-strip" style={s.profileStrip}>
+          {[
+            { icon: '✉️', label: 'Email',            value: user?.email },
+            { icon: '🎓', label: 'Class / Year',     value: user?.className },
+            { icon: '🏫', label: 'School / College', value: user?.schoolName },
+          ].map(f => (
+            <div key={f.label} style={s.pchip}>
+              <span style={{ fontSize: '1rem' }}>{f.icon}</span>
+              <div>
+                <div style={s.chipLabel}>{f.label}</div>
+                <div style={s.chipValue}>{f.value || '—'}</div>
+              </div>
+            </div>
+          ))}
+          <button onClick={startEdit} style={s.editBtn}>✏️ Edit Profile</button>
+        </div>
+      </div>
+
+      {/* edit modal */}
+      {editing && (
+        <div style={s.overlay} onClick={() => setEditing(false)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()} className="dc">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>Edit Profile</h2>
+              <button onClick={() => setEditing(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#9ca3af' }}>✕</button>
+            </div>
+            {saveMsg && (
+              <div style={{ padding: '0.4rem 0.85rem', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600, marginBottom: '1rem', display: 'inline-block',
+                background: saveMsg.includes('!') ? '#dcfce7' : '#fef2f2',
+                color:      saveMsg.includes('!') ? '#15803d' : '#dc2626' }}>
+                {saveMsg}
+              </div>
+            )}
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              {[
+                { key: 'fullName',   lbl: 'Full Name' },
+                { key: 'className',  lbl: 'Class / Year' },
+                { key: 'schoolName', lbl: 'School / College' },
+              ].map(f => (
+                <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.28rem' }}>
+                  <label style={{ fontSize: '0.77rem', fontWeight: 700, color: '#374151' }}>{f.lbl}</label>
+                  <input value={pf[f.key] || ''} onChange={e => setPf(p => ({ ...p, [f.key]: e.target.value }))} style={s.input} />
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '0.55rem', marginTop: '0.2rem' }}>
+                <button type="submit" disabled={saving} style={s.saveBtn}>{saving ? 'Saving…' : 'Save Changes'}</button>
+                <button type="button" onClick={() => setEditing(false)} style={s.cancelBtn}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ BODY ══════════ */}
+      <div style={s.body}>
+
+        {/* Quick Actions */}
+        <div style={{ marginBottom: '2rem' }}>
+          <SectionHead icon="⚡" title="Quick Actions" />
+          <div className="quick-row" style={s.quickRow}>
+            {quickActions.map(a => (
+              <button key={a.path} className="qa-btn" onClick={() => navigate(a.path)}>
+                <span style={{ fontSize: '1.5rem' }}>{a.emoji}</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>{a.label}</div>
+                  <div style={{ color: '#6b7280', fontSize: '0.74rem', marginTop: 2 }}>{a.sub}</div>
+                </div>
+                <span style={{ marginLeft: 'auto', color: '#a78bfa', fontSize: '1rem' }}>→</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Feature Cards */}
+        <div style={{ marginBottom: '2rem' }}>
+          <SectionHead icon="🚀" title="Explore Features" />
+          <div className="feat-row" style={s.featRow}>
+            {features.map(f => (
+              <div key={f.path} className="feat-card dc" style={s.featCard}>
+                <div style={{ width: 52, height: 52, borderRadius: 14, background: f.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', marginBottom: '1rem' }}>
+                  {f.icon}
+                </div>
+                <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 800, color: '#111827' }}>{f.title}</h3>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.83rem', color: '#6b7280', lineHeight: 1.6 }}>{f.desc}</p>
+                <button onClick={() => navigate(f.path)} style={{ ...s.featBtn, background: f.color }}>
+                  {f.btnLabel} →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Profile Summary Card */}
+        <div style={{ marginBottom: '2rem' }}>
+          <SectionHead icon="👤" title="Profile Summary" />
+          <div style={s.card} className="dc">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div style={{ ...s.avatar, width: 64, height: 64, fontSize: '1.4rem', background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: '3px solid #e0e7ff' }}>
+                {initials}
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>{user?.fullName || '—'}</div>
+                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginTop: 4 }}>{user?.email}</div>
+                <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                  {user?.className && (
+                    <span style={s.tag}>🎓 {user.className}</span>
+                  )}
+                  {user?.schoolName && (
+                    <span style={s.tag}>🏫 {user.schoolName}</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={startEdit} style={{ ...s.featBtn, background: '#4f46e5', padding: '0.55rem 1.25rem', fontSize: '0.82rem' }}>
+                ✏️ Edit Profile
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tips Card */}
+        <div style={s.tipsCard} className="dc">
+          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>💡</div>
+          <h3 style={{ margin: '0 0 0.4rem', fontSize: '0.95rem', fontWeight: 800, color: '#1e3a8a' }}>
+            Getting the most out of College Compass
+          </h3>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: '#3b82f6', lineHeight: 1.7 }}>
+            Use <strong>IIT Finder</strong> to check your JEE eligibility → explore <strong>Cutoff Lookup</strong> for specific branches → then find your perfect match with <strong>College + Course Recommendation</strong>.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function SectionHead({ icon, title }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.9rem' }}>
+      <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }} />
+      <span style={{ fontSize: '1rem', fontWeight: 800, color: '#111827' }}>{icon} {title}</span>
+    </div>
+  );
+}
+
+/* ── styles ── */
+const s = {
+  page: { background: '#f1f5f9', minHeight: '100vh' },
+
+  hero: {
+    background: 'linear-gradient(135deg,#0f172a 0%,#1e3a8a 45%,#4338ca 100%)',
+    padding: '1.6rem 0 0', position: 'relative', overflow: 'hidden',
+  },
+  orb1: {
+    position: 'absolute', top: -60, right: -60, width: 220, height: 220,
+    borderRadius: '50%', background: 'rgba(99,102,241,0.22)', filter: 'blur(40px)', pointerEvents: 'none',
+  },
+  orb2: {
+    position: 'absolute', bottom: 0, left: '30%', width: 180, height: 180,
+    borderRadius: '50%', background: 'rgba(56,189,248,0.1)', filter: 'blur(35px)', pointerEvents: 'none',
+  },
+  heroTop: {
+    maxWidth: 1140, margin: '0 auto', padding: '0 1.5rem 1.2rem',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    position: 'relative', zIndex: 1,
+  },
+  avatar: {
+    width: 52, height: 52, borderRadius: '50%',
+    background: 'linear-gradient(135deg,rgba(255,255,255,0.32),rgba(255,255,255,0.12))',
+    border: '2px solid rgba(255,255,255,0.42)',
+    color: 'white', fontWeight: 900, fontSize: '1.15rem',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backdropFilter: 'blur(8px)',
+  },
+  greeting: { margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', fontWeight: 500 },
+  heroName: { margin: '0.08rem 0 0', color: 'white', fontSize: '1.4rem', fontWeight: 900, letterSpacing: '-0.4px' },
+  logoutBtn: {
+    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.26)',
+    color: 'rgba(255,255,255,0.88)', padding: '0.42rem 1rem',
+    borderRadius: 8, fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+  },
+  profileStrip: {
+    maxWidth: 1140, margin: '0 auto', padding: '0.7rem 1.5rem',
+    display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center',
+    position: 'relative', zIndex: 1, borderTop: '1px solid rgba(255,255,255,0.1)',
+  },
+  pchip: {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.17)',
+    backdropFilter: 'blur(8px)', borderRadius: 10, padding: '0.48rem 0.8rem',
+  },
+  chipLabel: { fontSize: '0.66rem', color: 'rgba(255,255,255,0.55)', fontWeight: 600 },
+  chipValue: { fontSize: '0.83rem', color: 'white', fontWeight: 700, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  editBtn: {
+    marginLeft: 'auto', background: 'rgba(255,255,255,0.13)',
+    border: '1px solid rgba(255,255,255,0.28)', color: 'white',
+    borderRadius: 8, padding: '0.42rem 0.88rem', fontSize: '0.79rem', fontWeight: 700, cursor: 'pointer',
+  },
+
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 999, backdropFilter: 'blur(4px)',
+  },
+  modal: {
+    background: 'white', borderRadius: 16, padding: '1.65rem',
+    width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+  },
+  input: {
+    padding: '0.52rem 0.78rem', border: '1.5px solid #d1d5db', borderRadius: 8,
+    fontSize: '0.88rem', color: '#111827', background: '#fafafa', width: '100%', boxSizing: 'border-box',
+  },
+  saveBtn: {
+    flex: 1, padding: '0.62rem', background: 'linear-gradient(135deg,#1d4ed8,#4338ca)',
+    color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer',
+  },
+  cancelBtn: {
+    padding: '0.62rem 1rem', background: '#f3f4f6', color: '#374151',
+    border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer',
+  },
+
+  body: { maxWidth: 1140, margin: '0 auto', padding: '1.65rem 1.5rem 3rem' },
+
+  quickRow: {
+    display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.8rem',
+  },
+
+  featRow: {
+    display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem',
+  },
+  featCard: {
+    background: 'white', borderRadius: 16, padding: '1.5rem',
+    boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+  },
+  featBtn: {
+    color: 'white', border: 'none', borderRadius: 10,
+    padding: '0.6rem 1.2rem', fontSize: '0.83rem', fontWeight: 700,
+    cursor: 'pointer', display: 'inline-block',
+  },
+
+  card: {
+    background: 'white', borderRadius: 14, padding: '1.3rem',
+    boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb',
+  },
+  tag: {
+    background: '#f0f4ff', color: '#4338ca', border: '1px solid #e0e7ff',
+    borderRadius: 20, fontSize: '0.72rem', padding: '0.18rem 0.65rem', fontWeight: 600,
+  },
+
+  tipsCard: {
+    background: 'linear-gradient(135deg,#eff6ff,#eef2ff)',
+    border: '1.5px solid #bfdbfe', borderRadius: 16, padding: '1.4rem 1.6rem',
+    textAlign: 'center',
+  },
+
+  spinner: {
+    width: 36, height: 36, border: '4px solid #e5e7eb',
+    borderTop: '4px solid #4f46e5', borderRadius: '50%',
+    animation: 'spin 0.75s linear infinite',
+  },
+};
